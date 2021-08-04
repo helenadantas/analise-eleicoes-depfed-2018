@@ -1,0 +1,196 @@
+---
+title: "Gastos e votação recebida em candidaturas a dep. federal na eleição de 2018"
+author: "Helena Mylena C. Dantas"
+output: 
+  html_notebook:
+    theme: readable
+    fig_width: 7
+    toc: true
+    toc_float: true
+---
+
+
+```{r setup, warning=FALSE, message=FALSE}
+library(tidyverse)
+library(tidymodels)
+theme_set(theme_bw())
+```
+
+```{r}
+cand_raw = read_csv(here::here("data/candidaturas-dep-federal-2018.csv"), 
+                    col_types = "ccdcciicd")
+
+cand = cand_raw %>%
+   filter(total_receita > 100, qtde_votos > 10, patrimonio > 1000)
+            
+cand %>%
+  slice(1:10)
+```
+
+# Criação dos dados
+
+Os dados foram criados 2 anos atrás através dos dados abertos do TSE sobre candidatos a deputados(as) federais do ano de 2018. Cada linha do dataset é um candidato(a) a deputado(a) federal. As variáveis são:
+
+* cpf: o CPF de cada candidato(a),
+* uf: estado da federação e Distrito Federal,
+* patrimonio: patrimônio declarado pelo(a) candidato(a),
+* cor_raca: cor/raça do(a) candidato(a),
+* sexo: sexo do(a) candidato(a),
+* idade: do(a) candidato(a) no ano da eleição,
+* qtde_votos: quantidade de votos do(a) candidato(a) na eleição,
+* sigla_partido: sigla do partido do(a) candidato(a) no ano da eleição,
+* total_receita: é o total arrecadado para ser gasto na campanha (provavelmente igual ao gasto).
+
+# Análise dos dados 
+
+## Como o eleitorado brasileiro vota em releção ao sexo para deputados(as) federais
+
+Inicialmente vamos analisar como os votos para deputado(a) federal em 2018 se comportam de acordo com o gênero através do gráfico abaixo:
+
+
+```{r}
+cand %>% 
+    ggplot(mapping = aes(y = sexo, x  = qtde_votos)) + 
+    geom_jitter(height = .3, color = "steelblue", alpha = .2) +
+    labs(
+      y='',
+      x='Número de votos'
+    )+
+   scale_x_log10()
+
+```
+
+É possível ver que há uma presença muito maior de candidatos do sexo masculino. Além disso, também podemos ver que houve uma maior concentração de candidatos homens recebendo uma quantidade mais expressiva de votos do que de mulheres.
+
+Já no bloxpots abaixo, vamos visualizar a distribuição dos votos levando em conta valores extremos, a dispersão e assimetria dos dados.
+
+```{r}
+cand %>% 
+    ggplot(aes(y = qtde_votos)) + 
+    geom_boxplot(fill = "lightblue",
+               outlier.color = "transparent",
+               coef = 1000) + 
+    facet_wrap(~sexo)+
+    scale_y_log10()
+```
+
+Pode-se verificar que a disposição de votos em cada grupo é simétrica. Além disso, pelos tamanhos das caldas, há pouca dispersão nos dois casos. No entanto, ainda é possível ver que há uma maior quantidade distribuída de votos para homens do que para mulheres.
+
+Por fim, na tabela abaixo, vamos verificar isso em números:
+
+```{r}
+cand %>% 
+  group_by(sexo)%>%
+  summarise(
+    minimo = min(qtde_votos),
+    `25 percentil` = quantile(qtde_votos, probs = 0.25),
+    mediana = median(qtde_votos, na.rm = TRUE),
+    `75 percentil` = quantile(qtde_votos, probs = 0.75),
+    máximo = max(qtde_votos),
+    
+    
+  )
+
+```
+
+Podemos perceber que a mediana dos votos para mulheres é 3.5 vezes menor que a dos votos para candidatos homens, o que também é verificado nos percentis. Além disso, o máximo de votos para homens é quase 7 vezes maior do que o máximo de votos para mulheres.
+
+## Relação entre quantidade de votos e receita dos deputados(as) federais
+
+Agora, iremos verificar se existe correlação entre a quantidade votos recebidos pelos candidatos e sua respectiva receita para campanha.
+Para isso, primeiramente, vamos verificar como as variáveis em questão se comportam juntas no gráfico abaixo: 
+
+```{r}
+cand %>%
+  ggplot(aes(x = qtde_votos , y = total_receita)) +
+  geom_point(alpha = 0.2 , color = "red") +
+  labs(
+    X = "Receita",
+    y = "Patrimônio")+
+  scale_y_log10()+
+  scale_x_log10()
+```
+É possível verificar indícios de correlação. Assim, agora vamos verificar através de coeficientes:
+
+```{r}
+cand %>%
+  summarise(corr_pearson = cor(patrimonio, qtde_votos, method = "pearson"),
+          )
+```
+
+De acordo com os coeficientes, podemos ver que a correlação é  positiva e fraca.
+Para ter uma visão mais detalhada, vamos visualizar como a correlação se comporta por estados. Inicialmente, vamos visualizar através dos gráficos:
+
+```{r}
+cand %>%
+  ggplot(aes(x = qtde_votos, y = total_receita)) +
+  geom_point(alpha = 0.2 , color = "red") +
+  facet_wrap(~uf, ncol = 6)+
+  labs(
+    X = "Receita",
+    y = "Patrimônio")+
+  scale_y_log10()+
+  scale_x_log10()
+```
+Em alguns estados notamos que há indícios de correlação mais fortes do que em outros.
+A seguir, vamos verificar o coeficiente de correlação entre a quantidade de votos e a receita para campanha de cada candidato por estado.
+
+```{r}
+cand %>%
+group_by(uf) %>%
+  summarise(corr_pearson = cor(patrimonio, qtde_votos, method = "pearson"),
+          
+          )
+```
+
+Nos estados de Alagoas, Maranhão, Mato Grosso do Sul e Pará podemos concluir que a correlação é moderada e positiva. Já em São Paulo, Sergipe e Distrito Federal a correlação é ínfima positiva. No Amapá a correlação é fraca e negativa. Por fim, os demais estados apresentaram correlação fraca e positiva.
+
+
+## Como o brasileiro vota em relação à cor/ raça dos candidatos
+
+Na última análise, vamos ver como os brasileiros votam em relação à cor/raça dos candidatos a deputado(a) federal.
+No gráfico de pontos a seguir, vamos ver como é a distribuição desses votos.
+
+```{r}
+cand %>% 
+    ggplot(mapping = aes(y = cor_raca, x  = qtde_votos)) + 
+    geom_jitter(height = .3, color = "green", alpha = .2) +
+    labs(
+      y='',
+      x='Número de votos'
+    )+
+   scale_x_log10()
+
+```
+
+Podemos ver que há uma concentração bem maior de votos para pessoas que se consideram brancas do que para as demais. Também vemos uma distribuição quase inexpressiva de votos para pessoas indígenas e amarelas.
+
+```{r}
+cand %>% 
+    ggplot(aes(y = qtde_votos)) + 
+    geom_boxplot(color = "black",
+               fill = "lightgreen",
+               outlier.color = "transparent",
+               coef = 1000) +
+    facet_wrap(~cor_raca)+
+    scale_y_log10()
+```
+
+A distribuição de votos é simétrica para pessoas brancas, indígenas, pardas e pretas, havendo pouca dispersão. Já para pessoas amarelas a distribuição é assimétrica positiva.
+Para finalizar, vamos visualizar os dados através da tabela à seguir:
+
+```{r}
+cand %>% 
+  group_by(cor_raca)%>%
+  summarise(
+    minimo = min(qtde_votos),
+    `1º quartil` = quantile(qtde_votos, probs = 0.25),
+    mediana = median(qtde_votos, na.rm = TRUE),
+    `3º quartil` = quantile(qtde_votos, probs = 0.75),
+    máximo = max(qtde_votos),
+    
+    
+  )
+```
+
+Como observado inicialmente, as pessoas brancas tiveram uma quantidade de votos distribúidos bem maior que as demais. Porém, podemos ver que o maior valor mínimo de votos recebidos foi por uma pessoa indígena, assim como o menor valor máximo de votos. A distribuição dos votos para pessoas amarelas foi semelhante à das pessoas indígenas, diferindo-se por ter uma mediana mais próxima do primeiro quartil. Já os votos em pessoas pretas e pardas tiveram distribuições semelhantes, tendo uma maior presença de votos do que em pessoas amarelas e indígenas e menor do que em brancos. 
